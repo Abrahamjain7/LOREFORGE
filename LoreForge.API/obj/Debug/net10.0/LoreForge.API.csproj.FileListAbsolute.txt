@@ -123,3 +123,4 @@ C:\Users\abrah\LoreForge\LoreForge.API\obj\Debug\net10.0\refint\LoreForge.API.dl
 C:\Users\abrah\LoreForge\LoreForge.API\obj\Debug\net10.0\LoreForge.API.pdb
 C:\Users\abrah\LoreForge\LoreForge.API\obj\Debug\net10.0\LoreForge.API.genruntimeconfig.cache
 C:\Users\abrah\LoreForge\LoreForge.API\obj\Debug\net10.0\ref\LoreForge.API.dll
+C:\Users\abrah\LoreForge\LoreForge.API\obj\Debug\net10.0\LoreForge.API.sourcelink.json
