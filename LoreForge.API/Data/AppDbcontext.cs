@@ -15,10 +15,13 @@ namespace LoreForge.API.Data
 
         public DbSet<User> Users { get; set; }
         public DbSet<Game> Games { get; set; }
-        public DbSet<Guide> Guides { get; set; }
+        public DbSet<Guide> Guides => Set<Guide>();
         public DbSet<GuideVersion> GuideVersions { get; set; }
         public DbSet<Comment> Comments { get; set; }
         public DbSet<Rating> Ratings { get; set; }
+
+        public DbSet<GuideVote> GuideVotes { get; set; }
+      
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {

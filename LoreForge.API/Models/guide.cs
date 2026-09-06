@@ -1,47 +1,31 @@
 using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace LoreForge.API.Models
 {
     public class Guide
     {
-        [Key]
-        public long Id { get; set; }
+        public int Id { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string Content { get; set; } = string.Empty;
+        public string Status { get; set; } = "Pending";
+        public bool IsApproved { get; set; } = false;
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public int? Upvotes { get; set; } = 0;
 
-        [Required]
+        // Foreign Keys & Navigation Properties
         public int GameId { get; set; }
-        
-        [ForeignKey("GameId")]
         public Game? Game { get; set; }
 
-        [Required]
-        public long AuthorId { get; set; }
+        public int UserId { get; set; }
+        public User? User { get; set; }
 
-        [ForeignKey("AuthorId")]
-        public User? Author { get; set; }
-
-        [Required]
-        [MaxLength(200)]
-        public string Title { get; set; } = string.Empty;
-
-        [Required]
-        public string Content { get; set; } = string.Empty;
-
-        [MaxLength(20)]
-        // Status: "Pending", "Approved", "Rejected"
-        public string Status { get; set; } = "Pending";
-
-        public int ViewCount { get; set; } = 0;
-
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-
-        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
-
-        // Navigation properties for relationships
-        public ICollection<GuideVersion> Versions { get; set; } = new List<GuideVersion>();
-        public ICollection<Comment> Comments { get; set; } = new List<Comment>();
-        public ICollection<Rating> Ratings { get; set; } = new List<Rating>();
+        // Ignore in EF Core database mapping
+        [NotMapped]
+        public User? Author 
+        { 
+            get => User; 
+            set => User = value; 
+        }
     }
 }

@@ -1,32 +1,21 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 
+using System.Collections.Generic;
+
 namespace LoreForge.API.Models
 {
     public class User
     {
-        [Key] // Marks this as the Primary Key
-        public long Id { get; set; }
-
-        [Required]
-        [MaxLength(50)]
+        public int Id { get; set; }
         public string Username { get; set; } = string.Empty;
-
-        [Required]
-        [EmailAddress]
-        [MaxLength(100)]
         public string Email { get; set; } = string.Empty;
-
-        [Required]
         public string PasswordHash { get; set; } = string.Empty;
+        public string Role { get; set; } = "User";
 
-        [Required]
-        [MaxLength(20)]
-        // Will store roles: Admin, Contributor, Reader
-        public string Role { get; set; } = "Reader"; 
-
-        public int ReputationPoints { get; set; } = 0;
-
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        // Navigation properties
+        public ICollection<Guide> Guides { get; set; } = new List<Guide>();
+        public ICollection<Comment> Comments { get; set; } = new List<Comment>();
+        public ICollection<Rating> Ratings { get; set; } = new List<Rating>();
     }
 }

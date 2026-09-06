@@ -1,7 +1,4 @@
-using System;
-using System.Linq;
 using System.Security.Claims;
-using System.Threading.Tasks;
 using LoreForge.API.Data;
 using LoreForge.API.DTOs;
 using LoreForge.API.Models;
@@ -22,118 +19,153 @@ namespace LoreForge.API.Controllers
             _context = context;
         }
 
-        // GET: api/guides (Only approved guides for readers)
+        // GET: api/guides (Public - Approved guides only)
         [HttpGet]
-        public async Task<IActionResult> GetApprovedGuides([FromQuery] string? search, [FromQuery] int? gameId)
+        public async Task<IActionResult> GetApprovedGuides()
         {
-            var query = _context.Guides
+            var guides = await _context.Guides
                 .Include(g => g.Game)
-                .Include(g => g.Author)
-                .Include(g => g.Ratings)
-                .Where(g => g.Status == "Approved")
-                .AsQueryable();
-
-            if (!string.IsNullOrEmpty(search))
-            {
-                query = query.Where(g => g.Title.ToLower().Contains(search.ToLower()) || g.Content.ToLower().Contains(search.ToLower()));
-            }
-
-            if (gameId.HasValue)
-            {
-                query = query.Where(g => g.GameId == gameId.Value);
-            }
-
-            var guides = await query.Select(g => new GuideResponseDto
-            {
-                Id = g.Id,
-                GameTitle = g.Game != null ? g.Game.Title : "Unknown",
-                AuthorUsername = g.Author != null ? g.Author.Username : "Anonymous",
-                Title = g.Title,
-                Content = g.Content,
-                Status = g.Status,
-                ViewCount = g.ViewCount,
-                Upvotes = g.Ratings.Count(r => r.IsUpvote),
-                CreatedAt = g.CreatedAt
-            }).ToListAsync();
+                .Include(g => g.User)
+                .Where(g => g.IsApproved)
+                .Select(g => new GuideDto
+                {
+                    Id = g.Id,
+                    Title = g.Title,
+                    Content = g.Content,
+                    IsApproved = g.IsApproved,
+                    CreatedAt = g.CreatedAt,
+                    Upvotes = g.Upvotes ?? 0,
+                    GameId = g.GameId,
+                    GameTitle = g.Game != null ? g.Game.Title : string.Empty,
+                    AuthorEmail = g.User != null ? g.User.Email : string.Empty
+                })
+                .ToListAsync();
 
             return Ok(guides);
         }
 
-        // POST: api/guides (Contributors & Admins can submit guides)
+
+        // GET: api/guides/{id} (Public)
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetGuideById(int id)
+        {
+            var guide = await _context.Guides
+                .Include(g => g.Game)
+                .Include(g => g.User)
+                .Where(g => g.Id == id)
+                .Select(g => new GuideDto
+                {
+                    Id = g.Id,
+                    Title = g.Title,
+                    Content = g.Content,
+                    IsApproved = g.IsApproved,
+                    CreatedAt = g.CreatedAt,
+                    Upvotes = g.Upvotes ?? 0,
+                    GameId = g.GameId,
+                    GameTitle = g.Game != null ? g.Game.Title : string.Empty,
+                    AuthorEmail = g.User != null ? g.User.Email : string.Empty
+                })
+                .FirstOrDefaultAsync();
+
+            if (guide == null)
+            {
+                return NotFound("Guide not found.");
+            }
+
+            return Ok(guide);
+        }
+
+
+
+
+
+        // POST: api/guides (Requires Authentication)
         [HttpPost]
-        [Authorize(Roles = "Contributor,Admin")]
+        [Authorize]
         public async Task<IActionResult> CreateGuide([FromBody] CreateGuideDto dto)
         {
-            var userId = long.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+            {
+                return Unauthorized("Invalid user identification in token.");
+            }
+
+            var gameExists = await _context.Games.AnyAsync(g => g.Id == dto.GameId);
+            if (!gameExists)
+            {
+                return BadRequest("The specified game does not exist.");
+            }
 
             var guide = new Guide
             {
-                GameId = dto.GameId,
-                AuthorId = userId,
                 Title = dto.Title,
                 Content = dto.Content,
-                Status = "Pending" // Sent to moderation queue
+                GameId = dto.GameId,
+                UserId = userId,
+                IsApproved = false,
+                Upvotes = 0
             };
 
             _context.Guides.Add(guide);
             await _context.SaveChangesAsync();
 
-            return Ok(new { Message = "Guide submitted successfully and is pending admin approval.", GuideId = guide.Id });
+            return Ok(new { message = "Guide submitted successfully. Awaiting approval.", guideId = guide.Id });
         }
 
-        // PUT: api/guides/{id} (Updates content & records version history)
-        [HttpPut("{id}")]
-        [Authorize(Roles = "Contributor,Admin")]
-        public async Task<IActionResult> UpdateGuide(long id, [FromBody] UpdateGuideDto dto)
+        // PUT: api/guides/{id}/approve (Admin Only)
+        [HttpPut("{id}/approve")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> ApproveGuide(int id)
         {
             var guide = await _context.Guides.FindAsync(id);
-            if (guide == null) return NotFound("Guide not found.");
-
-            var userId = long.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-
-            // Record edit history before updating current content
-            var version = new GuideVersion
+            if (guide == null)
             {
-                GuideId = guide.Id,
-                EditedById = userId,
-                Content = guide.Content,
-                ChangedAt = DateTime.UtcNow
-            };
-            _context.GuideVersions.Add(version);
-
-            // Update guide
-            guide.Title = dto.Title;
-            guide.Content = dto.Content;
-            guide.UpdatedAt = DateTime.UtcNow;
-
-            await _context.SaveChangesAsync();
-            return Ok(new { Message = "Guide updated successfully and previous version saved." });
-        }
-
-        // POST: api/guides/{id}/upvote
-        [HttpPost("{id}/upvote")]
-        [Authorize]
-        public async Task<IActionResult> UpvoteGuide(long id)
-        {
-            var userId = long.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-
-            var existingRating = await _context.Ratings.FirstOrDefaultAsync(r => r.GuideId == id && r.UserId == userId);
-            if (existingRating != null)
-            {
-                return BadRequest("You have already voted on this guide.");
+                return NotFound("Guide not found.");
             }
 
-            var rating = new Rating
-            {
-                GuideId = id,
-                UserId = userId,
-                IsUpvote = true
-            };
-
-            _context.Ratings.Add(rating);
+            guide.IsApproved = true;
             await _context.SaveChangesAsync();
 
-            return Ok(new { Message = "Upvote registered." });
+            return Ok(new { message = $"Guide {id} has been approved." });
+        }
+
+        // POST: api/guides/{id}/upvote (Requires Authentication)
+        [HttpPost("{id}/upvote")]
+        [Authorize]
+        public async Task<IActionResult> UpvoteGuide(int id)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+            {
+                return Unauthorized("Invalid user identification in token.");
+            }
+
+            var guide = await _context.Guides.FindAsync(id);
+            if (guide == null)
+            {
+                return NotFound("Guide not found.");
+            }
+
+            // Check if user already upvoted
+            var existingVote = await _context.GuideVotes
+                .FirstOrDefaultAsync(v => v.GuideId == id && v.UserId == userId);
+
+            if (existingVote != null)
+            {
+                // Toggle off: remove vote
+                _context.GuideVotes.Remove(existingVote);
+                guide.Upvotes = Math.Max(0, (guide.Upvotes ?? 0) - 1);
+            }
+            else
+            {
+                // Toggle on: add vote
+                _context.GuideVotes.Add(new GuideVote { GuideId = id, UserId = userId });
+                guide.Upvotes = (guide.Upvotes ?? 0) + 1;
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = existingVote != null ? "Vote removed." : "Upvoted.", upvotes = guide.Upvotes });
         }
     }
 }

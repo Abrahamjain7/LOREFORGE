@@ -6,24 +6,13 @@ namespace LoreForge.API.Models
 {
     public class GuideVersion
     {
-        [Key]
-        public long Id { get; set; }
-
-        [Required]
-        public long GuideId { get; set; }
-
-        [ForeignKey("GuideId")]
-        public Guide? Guide { get; set; }
-
-        [Required]
-        public long EditedById { get; set; }
-
-        [ForeignKey("EditedById")]
-        public User? EditedBy { get; set; }
-
-        [Required]
+        public int Id { get; set; }
         public string Content { get; set; } = string.Empty;
+        public int VersionNumber { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-        public DateTime ChangedAt { get; set; } = DateTime.UtcNow;
+        // Foreign Key matching Guide.Id (int)
+        public int GuideId { get; set; }
+        public Guide? Guide { get; set; }
     }
 }

@@ -64,6 +64,15 @@ builder.Services.AddCors(options =>
               .AllowAnyMethod();
     });
 });
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowReactApp", policy =>
+    {
+        policy.WithOrigins("http://localhost:5173")
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
 
 var app = builder.Build();
 
@@ -75,6 +84,10 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseCors("AllowReact");
+app.UseCors("AllowReactApp");
+
+app.UseAuthentication();
+app.UseAuthorization();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
