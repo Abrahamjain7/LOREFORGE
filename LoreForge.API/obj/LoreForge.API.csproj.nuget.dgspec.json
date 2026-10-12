@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\abrah\\LoreForge\\LoreForge.API\\LoreForge.API.csproj": {}
+    "E:\\LoreForge\\Loreforge.API\\LoreForge.API.csproj": {}
   },
   "projects": {
-    "C:\\Users\\abrah\\LoreForge\\LoreForge.API\\LoreForge.API.csproj": {
+    "E:\\LoreForge\\Loreforge.API\\LoreForge.API.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\abrah\\LoreForge\\LoreForge.API\\LoreForge.API.csproj",
+        "projectUniqueName": "E:\\LoreForge\\Loreforge.API\\LoreForge.API.csproj",
         "projectName": "LoreForge.API",
-        "projectPath": "C:\\Users\\abrah\\LoreForge\\LoreForge.API\\LoreForge.API.csproj",
+        "projectPath": "E:\\LoreForge\\Loreforge.API\\LoreForge.API.csproj",
         "packagesPath": "C:\\Users\\abrah\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\abrah\\LoreForge\\LoreForge.API\\obj\\",
+        "outputPath": "E:\\LoreForge\\Loreforge.API\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\abrah\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -59,12 +59,18 @@
               "version": "[10.0.0, )"
             },
             "Microsoft.EntityFrameworkCore.Design": {
+              "include": "Runtime, Build, Native, ContentFiles, Analyzers, BuildTransitive",
+              "suppressParent": "All",
               "target": "Package",
               "version": "[10.0.0, )"
             },
-            "Microsoft.OpenApi": {
+            "Microsoft.EntityFrameworkCore.Sqlite": {
               "target": "Package",
-              "version": "[2.3.0, )"
+              "version": "[10.0.0, )"
+            },
+            "Microsoft.IdentityModel.Tokens": {
+              "target": "Package",
+              "version": "[8.3.0, )"
             },
             "Npgsql.EntityFrameworkCore.PostgreSQL": {
               "target": "Package",
@@ -73,6 +79,10 @@
             "Swashbuckle.AspNetCore": {
               "target": "Package",
               "version": "[10.0.0, )"
+            },
+            "System.IdentityModel.Tokens.Jwt": {
+              "target": "Package",
+              "version": "[8.3.0, )"
             }
           },
           "imports": [

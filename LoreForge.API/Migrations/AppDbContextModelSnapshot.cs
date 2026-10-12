@@ -78,6 +78,29 @@ namespace LoreForge.API.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Games");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            CoverImageUrl = "",
+                            Genre = "",
+                            Title = "Elden Ring"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            CoverImageUrl = "",
+                            Genre = "",
+                            Title = "Cyberpunk 2077"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            CoverImageUrl = "",
+                            Genre = "",
+                            Title = "Valorant"
+                        });
                 });
 
             modelBuilder.Entity("LoreForge.API.Models.Guide", b =>

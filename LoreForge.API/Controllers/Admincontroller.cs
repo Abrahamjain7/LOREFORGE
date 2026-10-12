@@ -24,8 +24,18 @@ namespace LoreForge.API.Controllers
         {
             var pendingGuides = await _context.Guides
                 .Include(g => g.Game)
-                .Include(g => g.Author)
-                .Where(g => g.Status == "Pending")
+                .Include(g => g.User)
+                .Where(g => g.Status == "Pending" || !g.IsApproved)
+                .Select(g => new {
+                    g.Id,
+                    g.Title,
+                    g.Content,
+                    g.Status,
+                    g.IsApproved,
+                    g.CreatedAt,
+                    GameTitle = g.Game != null ? g.Game.Title : string.Empty,
+                    AuthorEmail = g.User != null ? g.User.Email : "Tarnished"
+                })
                 .ToListAsync();
 
             return Ok(pendingGuides);
@@ -33,12 +43,13 @@ namespace LoreForge.API.Controllers
 
         // POST: api/admin/approve-guide/{id}
         [HttpPost("approve-guide/{id}")]
-        public async Task<IActionResult> ApproveGuide(long id)
+        public async Task<IActionResult> ApproveGuide(int id)
         {
             var guide = await _context.Guides.FindAsync(id);
             if (guide == null) return NotFound("Guide not found.");
 
             guide.Status = "Approved";
+            guide.IsApproved = true;
             await _context.SaveChangesAsync();
 
             return Ok(new { Message = "Guide approved and published!" });
@@ -46,12 +57,13 @@ namespace LoreForge.API.Controllers
 
         // POST: api/admin/reject-guide/{id}
         [HttpPost("reject-guide/{id}")]
-        public async Task<IActionResult> RejectGuide(long id)
+        public async Task<IActionResult> RejectGuide(int id)
         {
             var guide = await _context.Guides.FindAsync(id);
             if (guide == null) return NotFound("Guide not found.");
 
             guide.Status = "Rejected";
+            guide.IsApproved = false;
             await _context.SaveChangesAsync();
 
             return Ok(new { Message = "Guide rejected." });

@@ -38,7 +38,7 @@ public class AuthController : ControllerBase
 
         var user = new User
         {
-            Username = dto.Username,
+            Username = string.IsNullOrWhiteSpace(dto.Username) ? dto.Email.Split('@')[0] : dto.Username,
             Email = dto.Email,
             PasswordHash = passwordHash,
             Role = dto.Role ?? "Reader"
