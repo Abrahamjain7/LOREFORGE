@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "E:\\LoreForge\\Loreforge.API\\LoreForge.API.csproj": {}
+    "E:\\LoreForge\\LoreForge.API\\LoreForge.API.csproj": {}
   },
   "projects": {
-    "E:\\LoreForge\\Loreforge.API\\LoreForge.API.csproj": {
+    "E:\\LoreForge\\LoreForge.API\\LoreForge.API.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "E:\\LoreForge\\Loreforge.API\\LoreForge.API.csproj",
+        "projectUniqueName": "E:\\LoreForge\\LoreForge.API\\LoreForge.API.csproj",
         "projectName": "LoreForge.API",
-        "projectPath": "E:\\LoreForge\\Loreforge.API\\LoreForge.API.csproj",
+        "projectPath": "E:\\LoreForge\\LoreForge.API\\LoreForge.API.csproj",
         "packagesPath": "C:\\Users\\abrah\\.nuget\\packages\\",
-        "outputPath": "E:\\LoreForge\\Loreforge.API\\obj\\",
+        "outputPath": "E:\\LoreForge\\LoreForge.API\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\abrah\\AppData\\Roaming\\NuGet\\NuGet.Config"

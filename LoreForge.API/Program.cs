@@ -258,6 +258,22 @@ using (var scope = app.Services.CreateScope())
             }
         }
         context.SaveChanges();
+
+        if (isPostgresAvailable)
+        {
+            try
+            {
+                context.Database.ExecuteSqlRaw(@"
+                    SELECT setval(pg_get_serial_sequence('""Guides""', 'Id'), COALESCE(MAX(""Id""), 1)) FROM ""Guides"";
+                    SELECT setval(pg_get_serial_sequence('""Games""', 'Id'), COALESCE(MAX(""Id""), 1)) FROM ""Games"";
+                    SELECT setval(pg_get_serial_sequence('""Users""', 'Id'), COALESCE(MAX(""Id""), 1)) FROM ""Users"";
+                ");
+            }
+            catch (Exception seqEx)
+            {
+                Console.WriteLine($"[Sequence Sync Note]: {seqEx.Message}");
+            }
+        }
     }
     catch (Exception ex)
     {

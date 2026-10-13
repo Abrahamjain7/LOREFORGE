@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("LoreForge.API")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+008521a036a53a4a36f4d11e2e1da96142cdaa78")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a80a96c79888e99cc2ff06dc758f1b6a139a1e4d")]
 [assembly: System.Reflection.AssemblyProductAttribute("LoreForge.API")]
 [assembly: System.Reflection.AssemblyTitleAttribute("LoreForge.API")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
