@@ -10,9 +10,12 @@ export const AuthProvider = ({ children }) => {
       try {
         const payload = JSON.parse(atob(token.split('.')[1]));
         API.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        const parsedId = payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier']
+          || payload.nameid || payload.sub;
         return {
           email: payload.sub || payload.email || localStorage.getItem('email'),
           role: payload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'] || payload.role || localStorage.getItem('role'),
+          id: parsedId ? parseInt(parsedId, 10) : null,
         };
       } catch {
         localStorage.removeItem('token');
@@ -48,13 +51,18 @@ export const AuthProvider = ({ children }) => {
       
       const finalRole = userRole || payload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'] || payload.role || 'Reader';
       const finalEmail = userEmail || payload.sub || payload.email || '';
+      const parsedId = payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier']
+        || payload.nameid || payload.sub;
+      const finalId = parsedId ? parseInt(parsedId, 10) : null;
 
       if (finalRole) localStorage.setItem('role', finalRole);
       if (finalEmail) localStorage.setItem('email', finalEmail);
+      if (finalId) localStorage.setItem('userId', String(finalId));
 
       setUser({
         email: finalEmail,
         role: finalRole,
+        id: finalId,
       });
     } catch {
       setUser({
@@ -68,6 +76,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('token');
     localStorage.removeItem('role');
     localStorage.removeItem('email');
+    localStorage.removeItem('userId');
     delete API.defaults.headers.common['Authorization'];
     setUser(null);
   };

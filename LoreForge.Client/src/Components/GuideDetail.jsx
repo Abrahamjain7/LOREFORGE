@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import API from '../api/axios.js';
 import { useAuth } from '../Context/AuthContext.jsx';
-import { MOCK_GUIDES } from '../data/mockGuides.js';
+import { MOCK_GUIDES, MOCK_GAMES } from '../data/mockGuides.js';
 import { 
   ThumbsUp, 
   MessageSquare, 
@@ -18,7 +18,12 @@ import {
   Sword, 
   Zap, 
   Skull, 
-  RotateCcw 
+  RotateCcw,
+  Pencil,
+  Trash2,
+  X,
+  AlertTriangle,
+  Save
 } from 'lucide-react';
 
 // Dynamic Gaming Theme Presets for all 8 universes
@@ -237,6 +242,21 @@ export default function GuideDetail() {
   const [newCommentText, setNewCommentText] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
 
+  // Edit state
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editGameId, setEditGameId] = useState(1);
+  const [editContent, setEditContent] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState('');
+  const [editSuccess, setEditSuccess] = useState('');
+
+  // Delete state
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const [fetchError, setFetchError] = useState('');
+
   const numericId = parseInt(id, 10);
   // Match the specific requested guide from mock guides or custom created local storage guides (do not hardcode fallback to Elden Ring)
   const localMatch = (() => {
@@ -250,34 +270,62 @@ export default function GuideDetail() {
     }
   })();
 
-  const fetchGuideDetails = async () => {
-    try {
-      const res = await API.get(`/guides/${id}`);
-      if (res.data) {
-        // Retrieve rich metadata matching this guide or game (loadouts, counters, difficulty)
-        const richMeta = MOCK_GUIDES.find(g => g.id === res.data.id || String(g.id) === String(res.data.id))
-          || (res.data.gameTitle ? MOCK_GUIDES.find(g => g.gameTitle === res.data.gameTitle) : null)
-          || localMatch;
+  // Permission check: can current user edit/delete this guide?
+  const canEditOrDelete = user && guide && (
+    user.role === 'Admin' || 
+    (user.role === 'Contributor' && (
+      (guide.authorId && user.id && guide.authorId === user.id) ||
+      (guide.authorEmail && user.email && guide.authorEmail.toLowerCase() === user.email.toLowerCase())
+    ))
+  );
 
-        const merged = {
-          ...richMeta,
-          ...res.data,
-          difficulty: res.data.difficulty || richMeta?.difficulty || 'Master',
-          estimatedTime: res.data.estimatedTime || richMeta?.estimatedTime || '15 min read',
-          recommendedBuild: res.data.recommendedBuild || richMeta?.recommendedBuild || null,
-          bossCounters: res.data.bossCounters || richMeta?.bossCounters || []
-        };
-        setGuide(merged);
-        setUpvotes(res.data.upvotes ?? merged.upvotes ?? 0);
-        setComments(res.data.comments || richMeta?.comments || []);
+  const fetchGuideDetails = async () => {
+    setLoading(true);
+    setFetchError('');
+    try {
+      let loadedGuide = null;
+      // Only call backend API if id is a valid 32-bit database integer
+      if (!isNaN(numericId) && numericId <= 2147483647) {
+        try {
+          const res = await API.get(`/guides/${numericId}`);
+          if (res.data) {
+            // Retrieve rich metadata matching this guide or game (loadouts, counters, difficulty)
+            const richMeta = MOCK_GUIDES.find(g => g.id === res.data.id || String(g.id) === String(res.data.id))
+              || (res.data.gameTitle ? MOCK_GUIDES.find(g => g.gameTitle === res.data.gameTitle) : null)
+              || localMatch;
+
+            loadedGuide = {
+              ...richMeta,
+              ...res.data,
+              difficulty: res.data.difficulty || richMeta?.difficulty || 'Master',
+              estimatedTime: res.data.estimatedTime || richMeta?.estimatedTime || '15 min read',
+              recommendedBuild: res.data.recommendedBuild || richMeta?.recommendedBuild || null,
+              bossCounters: res.data.bossCounters || richMeta?.bossCounters || []
+            };
+            setUpvotes(res.data.upvotes ?? loadedGuide.upvotes ?? 0);
+            setComments(res.data.comments || richMeta?.comments || []);
+          }
+        } catch (apiErr) {
+          if (apiErr.response?.status === 404) {
+            setFetchError('Guide not found in the community strategy archives.');
+          } else if (apiErr.message) {
+            setFetchError('Backend connection issue: ' + apiErr.message);
+          }
+        }
       }
-    } catch {
-      // Fallback seamlessly to local matching guide for this specific ID
-      if (localMatch) {
-        setGuide(localMatch);
+
+      // If backend didn't return a guide, fallback seamlessly to local matching guide
+      if (!loadedGuide && localMatch) {
+        loadedGuide = localMatch;
         setUpvotes(localMatch.upvotes || 0);
         setComments(localMatch.comments || []);
+        setFetchError('');
       }
+
+      setGuide(loadedGuide);
+    } catch (err) {
+      console.error('Failed to load guide details:', err);
+      setFetchError('An error occurred while loading this guide.');
     } finally {
       setLoading(false);
     }
@@ -394,6 +442,146 @@ export default function GuideDetail() {
     }
   };
 
+  // Open edit modal and pre-populate fields
+  const handleOpenEdit = () => {
+    if (!guide) return;
+    setEditTitle(guide.title || '');
+    const defaultGameId = guide.gameId && availableGames.some(g => g.id === parseInt(guide.gameId, 10))
+      ? parseInt(guide.gameId, 10)
+      : (availableGames[0]?.id || 1);
+    setEditGameId(defaultGameId);
+    setEditContent(guide.content || '');
+    setEditError('');
+    setEditSuccess('');
+    setIsEditOpen(true);
+  };
+
+  // Submit guide edits to the backend
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    if (!editTitle.trim() || !editContent.trim()) {
+      setEditError('Title and content are required.');
+      return;
+    }
+    setEditSaving(true);
+    setEditError('');
+
+    const targetGameId = parseInt(editGameId, 10);
+    const selectedGameObj = availableGames.find(g => g.id === targetGameId) || availableGames[0];
+    const newGameTitle = selectedGameObj ? selectedGameObj.title : (guide?.gameTitle || 'General');
+
+    try {
+      if (!isNaN(numericId) && numericId <= 2147483647) {
+        await API.put(`/guides/${numericId}`, {
+          title: editTitle.trim(),
+          content: editContent.trim(),
+          gameId: targetGameId
+        });
+      } else {
+        // If the guide has a local timestamp ID (e.g. from an offline or un-synced creation)
+        // and the user is logged in as Admin or Contributor, publish it to the database
+        if (user && (user.role === 'Admin' || user.role === 'Contributor')) {
+          try {
+            const postRes = await API.post('/guides', {
+              title: editTitle.trim(),
+              content: editContent.trim(),
+              gameId: targetGameId
+            });
+            if (postRes.data?.guideId) {
+              const newDbId = postRes.data.guideId;
+              let customGuides = [];
+              try {
+                customGuides = JSON.parse(localStorage.getItem('loreforge_custom_guides') || '[]');
+              } catch { customGuides = []; }
+              customGuides = customGuides.filter(g => g.id !== numericId && g.id !== newDbId);
+              const syncedGuide = {
+                ...(guide || {}),
+                id: newDbId,
+                title: editTitle.trim(),
+                content: editContent.trim(),
+                gameId: targetGameId,
+                gameTitle: newGameTitle
+              };
+              customGuides.unshift(syncedGuide);
+              localStorage.setItem('loreforge_custom_guides', JSON.stringify(customGuides));
+              navigate(`/guides/${newDbId}`, { replace: true });
+              setEditSuccess('Guide saved and published to vault!');
+              setTimeout(() => {
+                setIsEditOpen(false);
+                setEditSuccess('');
+              }, 1200);
+              return;
+            }
+          } catch (postErr) {
+            console.warn('Failed to publish local guide to server:', postErr);
+          }
+        }
+      }
+
+      // Update local storage custom guides so changes persist on refresh
+      try {
+        let customGuides = JSON.parse(localStorage.getItem('loreforge_custom_guides') || '[]');
+        customGuides = customGuides.map(g => {
+          if (g.id === numericId || String(g.id) === String(id)) {
+            return {
+              ...g,
+              title: editTitle.trim(),
+              content: editContent.trim(),
+              gameId: targetGameId,
+              gameTitle: newGameTitle
+            };
+          }
+          return g;
+        });
+        localStorage.setItem('loreforge_custom_guides', JSON.stringify(customGuides));
+      } catch {
+        // ignore parse error
+      }
+
+      // Update local guide state so the UI reflects the changes immediately
+      setGuide(prev => ({
+        ...prev,
+        title: editTitle.trim(),
+        content: editContent.trim(),
+        gameId: targetGameId,
+        gameTitle: newGameTitle
+      }));
+      setEditSuccess('Guide updated successfully!');
+      setTimeout(() => {
+        setIsEditOpen(false);
+        setEditSuccess('');
+      }, 1200);
+    } catch (err) {
+      const msg = err?.response?.data || 'Failed to save changes. Please try again.';
+      setEditError(typeof msg === 'string' ? msg : JSON.stringify(msg));
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  // Confirm delete and navigate away on success
+  const handleConfirmDelete = async () => {
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      if (!isNaN(numericId) && numericId <= 2147483647) {
+        await API.delete(`/guides/${numericId}`);
+      }
+      try {
+        let customGuides = JSON.parse(localStorage.getItem('loreforge_custom_guides') || '[]');
+        customGuides = customGuides.filter(g => g.id !== numericId && String(g.id) !== String(id));
+        localStorage.setItem('loreforge_custom_guides', JSON.stringify(customGuides));
+      } catch {
+        // ignore
+      }
+      navigate('/');
+    } catch (err) {
+      const msg = err?.response?.data || 'Failed to delete guide. Please try again.';
+      setDeleteError(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      setDeleting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="py-32 flex flex-col items-center justify-center space-y-4">
@@ -411,6 +599,9 @@ export default function GuideDetail() {
     return (
       <div className="py-32 flex flex-col items-center justify-center space-y-4">
         <p className="text-slate-400 font-serif text-lg">Strategy Guide Not Found</p>
+        {fetchError && (
+          <p className="text-xs text-rose-400 font-sans max-w-md text-center">{fetchError}</p>
+        )}
         <button
           onClick={() => navigate('/')}
           className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl text-xs font-serif transition cursor-pointer"
@@ -430,8 +621,147 @@ export default function GuideDetail() {
   const buildDetails = activeGuide.recommendedBuild;
   const bossCounters = activeGuide.bossCounters || [];
 
+  // Available games for the edit form (try mock data, fall back to minimal list)
+  const availableGames = MOCK_GAMES && MOCK_GAMES.length > 0
+    ? MOCK_GAMES
+    : [{ id: activeGuide.gameId || 1, title: activeGuide.gameTitle || 'General' }];
+
   return (
     <div className={`space-y-8 animate-fade-in`}>
+
+      {/* ── Edit Guide Modal ── */}
+      {isEditOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto animate-fade-in">
+          <div className="bg-slate-950 border border-indigo-500/30 rounded-2xl w-full max-w-2xl p-6 relative shadow-2xl space-y-5 my-8">
+            <button
+              onClick={() => setIsEditOpen(false)}
+              className="absolute right-4 top-4 text-slate-400 hover:text-white transition cursor-pointer"
+              aria-label="Close edit dialog"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="space-y-1">
+              <h3 className="text-xl font-serif text-slate-100 flex items-center gap-2">
+                <Pencil className="w-5 h-5 text-indigo-400" /> Edit Strategy Guide
+              </h3>
+              <p className="text-xs text-slate-400 font-sans">Modify the guide title, game, or walkthrough content. Changes are saved permanently.</p>
+            </div>
+
+            {editError && (
+              <div className="bg-rose-950/40 border border-rose-500/40 text-rose-300 text-xs p-3 rounded-xl">
+                {editError}
+              </div>
+            )}
+            {editSuccess && (
+              <div className="bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 text-xs p-3 rounded-xl flex items-center gap-2">
+                <Check className="w-4 h-4" /> {editSuccess}
+              </div>
+            )}
+
+            <form onSubmit={handleSaveEdit} className="space-y-4 font-sans">
+              <div className="space-y-1.5">
+                <label className="text-xs font-serif text-slate-300 uppercase tracking-wider">Guide Title</label>
+                <input
+                  id="edit-guide-title"
+                  type="text"
+                  required
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none transition"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-serif text-slate-300 uppercase tracking-wider">Game Universe</label>
+                <select
+                  id="edit-guide-game"
+                  value={editGameId}
+                  onChange={(e) => setEditGameId(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none transition cursor-pointer"
+                >
+                  {availableGames.map(g => (
+                    <option key={g.id} value={g.id}>{g.title}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-serif text-slate-300 uppercase tracking-wider">Walkthrough Content</label>
+                <textarea
+                  id="edit-guide-content"
+                  required
+                  rows={10}
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-xl p-3 text-sm text-slate-200 outline-none transition resize-y font-mono text-xs leading-relaxed"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsEditOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-serif border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  id="edit-guide-save-btn"
+                  type="submit"
+                  disabled={editSaving}
+                  className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-5 py-2 rounded-xl text-xs font-serif flex items-center gap-2 transition shadow-lg shadow-indigo-600/20 cursor-pointer"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  {editSaving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete Confirmation Dialog ── */}
+      {isDeleteOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-slate-950 border border-rose-500/40 rounded-2xl w-full max-w-md p-6 space-y-5 shadow-2xl">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-6 h-6 text-rose-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <h3 className="text-lg font-serif text-slate-100">Delete Guide?</h3>
+                <p className="text-xs text-slate-400 font-sans leading-relaxed">
+                  This will permanently delete <strong className="text-slate-200">{activeGuide.title}</strong> from the vault. This action cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            {deleteError && (
+              <div className="bg-rose-950/40 border border-rose-500/40 text-rose-300 text-xs p-3 rounded-xl">
+                {deleteError}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => { setIsDeleteOpen(false); setDeleteError(''); }}
+                disabled={deleting}
+                className="px-4 py-2 rounded-xl text-xs font-serif border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 transition cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                id="confirm-delete-guide-btn"
+                onClick={handleConfirmDelete}
+                disabled={deleting}
+                className="bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white px-5 py-2 rounded-xl text-xs font-serif flex items-center gap-2 transition cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                {deleting ? 'Deleting...' : 'Delete Permanently'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Toast Notification */}
       {shareToast && (
@@ -472,6 +802,32 @@ export default function GuideDetail() {
             <Share2 className="w-3.5 h-3.5" />
             <span>Share</span>
           </button>
+
+          {/* Edit button — only for guide owner or Admin */}
+          {canEditOrDelete && (
+            <button
+              id="edit-guide-btn"
+              onClick={handleOpenEdit}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-serif transition border border-indigo-700/60 bg-indigo-950/50 text-indigo-300 hover:bg-indigo-900 hover:text-white cursor-pointer"
+              title="Edit this guide"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              <span>Edit</span>
+            </button>
+          )}
+
+          {/* Delete button — only for guide owner or Admin */}
+          {canEditOrDelete && (
+            <button
+              id="delete-guide-btn"
+              onClick={() => setIsDeleteOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-serif transition border border-rose-700/60 bg-rose-950/40 text-rose-300 hover:bg-rose-900 hover:text-white cursor-pointer"
+              title="Delete this guide"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Delete</span>
+            </button>
+          )}
 
           <button
             onClick={handleUpvote}

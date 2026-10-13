@@ -171,6 +171,7 @@ function AuthModal({ isOpen, onClose }) {
 
 // Automated Guide Submit Modal Component
 function GuideSubmitModal({ isOpen, onClose, onGuideCreated }) {
+  const { user } = useAuth();
   const [title, setTitle] = useState('');
   const [gameId, setGameId] = useState(1);
   const [difficulty, setDifficulty] = useState('Master');
@@ -207,31 +208,37 @@ function GuideSubmitModal({ isOpen, onClose, onGuideCreated }) {
       .join('\n\n');
 
     const fullContent = `${summary}\n\n## Walkthrough Steps\n\n${formattedSteps}`;
-    const selectedGameObj = MOCK_GAMES.find(g => g.id === parseInt(gameId, 10)) || MOCK_GAMES[0];
+    const parsedGameId = parseInt(gameId, 10);
+    const selectedGameObj = MOCK_GAMES.find(g => g.id === parsedGameId) || MOCK_GAMES[0];
+
+    let createdDbId = null;
+    try {
+      const res = await API.post('/guides', {
+        title,
+        gameId: parsedGameId,
+        content: fullContent
+      });
+      if (res.data?.guideId) {
+        createdDbId = res.data.guideId;
+      }
+    } catch (err) {
+      console.warn('API unavailable for guide save, persisting locally', err);
+    }
 
     const newGuideObj = {
-      id: Date.now(),
+      id: createdDbId || Date.now(),
       title,
-      gameId: parseInt(gameId, 10),
+      gameId: parsedGameId,
       gameTitle: selectedGameObj.title,
       difficulty,
       content: fullContent,
-      authorEmail: 'You (Guild Contributor)',
-      authorRole: 'Contributor',
+      authorEmail: user?.email || 'You (Guild Contributor)',
+      authorRole: user?.role || 'Contributor',
+      authorId: user?.id || null,
       estimatedTime: '15 min read',
       upvotes: 1,
       createdAt: new Date().toISOString()
     };
-
-    try {
-      await API.post('/guides', {
-        title,
-        gameId: parseInt(gameId, 10),
-        content: fullContent
-      });
-    } catch {
-      console.warn('API unavailable for guide save, persisting locally');
-    }
 
     // Always update local storage custom guides
     let customGuides = [];
@@ -239,6 +246,7 @@ function GuideSubmitModal({ isOpen, onClose, onGuideCreated }) {
     if (saved) {
       try { customGuides = JSON.parse(saved); } catch { customGuides = []; }
     }
+    customGuides = customGuides.filter(g => g.id !== newGuideObj.id);
     customGuides.unshift(newGuideObj);
     localStorage.setItem('loreforge_custom_guides', JSON.stringify(customGuides));
 
@@ -516,7 +524,8 @@ function HomeView({ onOpenSubmit }) {
         if (customSaved) {
           try {
             const parsedCustom = JSON.parse(customSaved);
-            loadedGuides = [...parsedCustom, ...loadedGuides];
+            const uniqueCustom = parsedCustom.filter(c => !loadedGuides.some(g => g.id === c.id));
+            loadedGuides = [...uniqueCustom, ...loadedGuides];
           } catch {
             // ignore parse error
           }
@@ -532,7 +541,8 @@ function HomeView({ onOpenSubmit }) {
         if (customSaved) {
           try {
             const parsedCustom = JSON.parse(customSaved);
-            loadedGuides = [...parsedCustom, ...loadedGuides];
+            const uniqueCustom = parsedCustom.filter(c => !loadedGuides.some(g => g.id === c.id));
+            loadedGuides = [...uniqueCustom, ...loadedGuides];
           } catch {
             // ignore parse error
           }
